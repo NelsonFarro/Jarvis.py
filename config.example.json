@@ -1,0 +1,17 @@
+{
+    "email": {
+        "address": "your_email@gmail.com",
+        "password": "your_password_here"
+    },
+    "paths": {
+        "music_dir": "C:\\Path\\To\\Your\\Music",
+        "vs_code": "C:\\Path\\To\\Code.exe",
+        "sublime_text": "C:\\Path\\To\\sublime_text.exe",
+        "eclipse": "C:\\Path\\To\\eclipse.exe",
+        "netbeans": "C:\\Path\\To\\netbeans64.exe",
+        "python_idle": "C:\\Path\\To\\pythonw.exe",
+        "android_studio": "C:\\Path\\To\\studio64.exe",
+        "gta_sa": "C:\\Path\\To\\gta_sa.exe",
+        "cs_16": "C:\\Path\\To\\CS16Launcher.exe"
+    }
+}

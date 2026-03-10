@@ -5,47 +5,79 @@ import wikipedia
 import webbrowser
 import os
 import smtplib
+import json
+import random
+import sys
 
-engine = pyttsx3.init('sapi5')
+# ==========================================
+# CONFIGURATION LOADER
+# ==========================================
+def load_config():
+    """
+    Loads user-specific configurations such as API keys, custom paths,
+    and credentials from a config.json file. This keeps the main codebase
+    clean and secure.
+    """
+    try:
+        with open('config.json', 'r') as f:
+            return json.load(f)
+    except FileNotFoundError:
+        print("Error: config.json not found! Please create one by copying config.example.json.")
+        sys.exit(1)
+    except json.JSONDecodeError:
+        print("Error: config.json is not a valid JSON file.")
+        sys.exit(1)
+
+config = load_config()
+
+# ==========================================
+# INITIALIZE TEXT-TO-SPEECH ENGINE
+# ==========================================
+engine = pyttsx3.init('sapi5') # sapi5 is Microsoft's Speech API
 voices = engine.getProperty('voices')
-#print(voices[0].id)                        # make voices[0].id to get male voice 
-engine.setProperty('voice', voices[0].id)   # make voices[1].id to get female voice 
+
+# Set Voice Type:
+# voices[0].id -> Male Voice
+# voices[1].id -> Female Voice
+engine.setProperty('voice', voices[0].id)   
 
 
 def speak(audio):
+    """Converts a text string to speech"""
     engine.say(audio)
     engine.runAndWait()
 
 def wishMe():
+    """Greets the user based on the current time of day"""
     hour = int(datetime.datetime.now().hour)
-    if hour>=4 and hour<12:
+    if hour >= 4 and hour < 12:
         speak("Good Morning!")
-    
-    elif hour>=12 and hour<16:
+    elif hour >= 12 and hour < 16:
         speak("Good Afternoon!")
-
     else:
         speak("Good Evening!")
 
-    speak("Hi, I am Your Virtual Assistant, How may I help you?")
+    speak("Hi, I am Your Virtual Assistant. How may I help you?")
 
 def takeCommand():
-    #It takes microphone inputs from the user and returns string output
-
+    """
+    Takes microphone input from the user and returns a string output.
+    This function uses Google's Speech Recognition API.
+    """
     r = sr.Recognizer()
     with sr.Microphone() as source:
         print("Listening...")
-        r.energy_threshold = 700            # ---------- for saying the commands louder so that background voices won't be captured
-        r.pause_threshold = 1               # ---------- break to end command in seconds
+        r.energy_threshold = 700            # Adjust for ambient background noise
+        r.pause_threshold = 1               # Seconds of no speech before a phrase is considered complete
         audio = r.listen(source)
         
-
     try:
-        print("Recognizion...")
+        print("Recognizing...")
+        # Using Google Speech Recognition (requires an internet connection)
         query = r.recognize_google(audio, language='en-in')
         print(f"User said :  {query}\n")
-
     except Exception as e:
+        # Happens when audio isn't clear or there's an internet issue
         print("Say that again please...")
         return "none"
     
@@ -53,28 +85,60 @@ def takeCommand():
 
 
 def sendEmail(to, content):
-    server = smtplib.SMTP("smtp.gmail.com", 587)
-    server.ehlo()
-    server.starttls()
-    server.login("dummymail@gmail.com", "passwordInputHere")      #password to put in a file for security reasons
-    server.sendmail("dummymail@gmail.com", to, content)
-    server.close()
+    """
+    Sends an email using dummy credentials loaded from config.json.
+    Note: You may need to generate an 'App Password' for Gmail to allow this.
+    """
+    email_config = config.get("email", {})
+    sender_email = email_config.get("address")
+    sender_password = email_config.get("password")
 
-if __name__ == "__main__":
-    speak("hello user")
+    if not sender_email or not sender_password:
+        print("Email configuration is missing from config.json")
+        speak("Email configuration is missing.")
+        return
+
+    try:
+        server = smtplib.SMTP("smtp.gmail.com", 587)
+        server.ehlo()
+        server.starttls()
+        server.login(sender_email, sender_password)
+        server.sendmail(sender_email, to, content)
+        server.close()
+    except Exception as e:
+        print(f"Failed to send email: {e}")
+        raise e
+
+# ==========================================
+# MAIN EXECUTION LOOP
+# ==========================================
+def main():
+    speak("Hello user")
     wishMe()
     
     while True:
+        # Take user command and convert to lowercase for easier string matching
         query = takeCommand().lower()
-        #query = input("enter command ")                        #to take commands while typing
-        #logic for executing task based on query
+        
+        # Uncomment below line to take text input instead of voice (good for debugging)
+        # query = input("Enter command: ").lower()     
+
+        if 'none' in query:
+            continue
+
+        # ------------------------------------------
+        # 1. CORE WEB SEARCH FEATURES
+        # ------------------------------------------
         if 'wikipedia' in query:
             speak('Searching Wikipedia...')
             query = query.replace("wikipedia", "")
-            results = wikipedia.summary(query, sentences=2)     #change sentences = 1 for one line 
-            speak("According to Wikipedia") 
-            print(results)
-            speak(results)
+            try:
+                results = wikipedia.summary(query, sentences=2)
+                speak("According to Wikipedia") 
+                print(results)
+                speak(results)
+            except Exception as e:
+                speak("Failed to search Wikipedia. Please try again.")
         
         elif "open youtube" in query:
             webbrowser.open('youtube.com')
@@ -82,75 +146,63 @@ if __name__ == "__main__":
         elif "open google" in query:
             webbrowser.open('google.com')
 
-        elif "open instagram" in query:
-            webbrowser.open('instagram.com')
-
         elif "open stackoverflow" in query:
             webbrowser.open('stackoverflow.com')
 
-        elif "open facebook" in query:
-            webbrowser.open('facebook.com')
-
-        elif "open gmail" in query:
-            webbrowser.open('gmail.com')
-
-
-
-        elif "play music" in query:
-            music_dir = "C:\\Users\\Admin\\Desktop\\One Direction"
-            songs =  os.listdir(music_dir)
-            print(songs)
-            os.startfile(os.path.join(music_dir, songs[0]))             #can use random function here
-
+        # ------------------------------------------
+        # 2. LOCAL SYSTEM TASKS
+        # ------------------------------------------
         elif "the time" in query:
             strTime = datetime.datetime.now().strftime("%H:%M:%S")
             speak(f"The time is {strTime}")
 
-        
+        elif "play music" in query:
+            # Reads the music directory path from config.json
+            music_dir = config.get("paths", {}).get("music_dir", "")
+            if os.path.exists(music_dir):
+                songs = os.listdir(music_dir)
+                if songs:
+                    print(f"Playing a random song from: {music_dir}")
+                    os.startfile(os.path.join(music_dir, random.choice(songs)))
+                else:
+                    speak("No songs found in the directory.")
+            else:
+                speak("Music directory not found. Please check your config file.")
 
-        elif "open vs code" in query:
-            #how to get path? right click on application > choose 'show in folder' > copy the path of .exe file and done.
-            vsCodePath = "C:\\Users\\Admin\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe"
-            os.startfile(vsCodePath)
+        # ------------------------------------------
+        # 3. APPLICATION LAUNCHERS
+        # ------------------------------------------
+        # Example: How to open an application based on a path from config.json
+        # Add your own custom application launchers here!
+        elif "open code editor" in query or "open vs code" in query:
+            # Look up the "vs_code" key inside the "paths" object in config.json
+            path = config.get("paths", {}).get("vs_code")
+            if path and os.path.exists(path):
+                os.startfile(path)
+            else:
+                speak("Code Editor path not configured. Please add it to config.json.")
 
-        elif "open sublime" in query:
-            sublimePath = "C:\\Program Files\\Sublime Text 3\\sublime_text.exe"
-            os.startfile(sublimePath)
-
-        elif "open eclipse" in query:
-            javaPath = "C:\\Users\\Admin\\eclipse\\jee-2020-12\\eclipse\\eclipse.exe"
-            os.startfile(javaPath)
-
-        elif "open netbeans" in query:
-            netbeansPath = "C:\Program Files\NetBeans 8.2\bin\netbeans64.exe"
-            os.startfile(netbeansPath)
-
-        elif "open python idle" in query:
-            pyPath = "C:\\Users\\Admin\\AppData\\Local\\Programs\\Python\\Python39\\pythonw.exe"
-            os.startfile(pyPath)
-
-        elif "open android studio" in query:
-            andrPath = "C:\\Program Files\\Android\\Android Studio\\bin\\studio64.exe"
-            os.startfile(andrPath)
-
-        elif "open san andreas" in query:
-            gtaSaPath = "C:\\Program Files (x86)\\Mr DJ\\Grand Theft Auto San Andreas\\gta_sa.exe"
-            os.startfile(gtaSaPath)
-
-        elif "open cs" in query:
-            csPath = "C:\\Games\\Counter-Strike WaRzOnE\\CS16Launcher.exe"
-            os.startfile(csPath)
-
-
-
-        #work in process
-        elif "email to person_name" in query:
+        # ------------------------------------------
+        # 4. EXTERNAL API EXAMPLES (Email)
+        # ------------------------------------------
+        elif "email" in query:
             try:
                 speak("What should I write?")
                 content = takeCommand()
-                to = "person_email@gmail.com"            #to the person can take user input for future scope
+                # TODO: Implement a contact dictionary mapping names to emails
+                to = "test_receiver@gmail.com"  
                 sendEmail(to, content)
-                speak("Email has been sent.")           #feedback
+                speak("Email has been sent.")
             except Exception as e:
                 print(e)
-                speak("Email not sent")
+                speak("Email was not sent.")
+                
+        # ------------------------------------------
+        # 5. CONTROL & EXIT
+        # ------------------------------------------
+        elif "quit" in query or "exit" in query or "stop" in query:
+            speak("Goodbye! Have a nice day.")
+            break
+
+if __name__ == "__main__":
+    main()
