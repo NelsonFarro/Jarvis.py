@@ -42,7 +42,20 @@ A voice-controlled virtual assistant written in Python. This is an excellent pro
    ```
 
 ## Customization
-To add new applications, update the `config.json` file with the absolute path of the `.exe` file, and add an `elif` condition in `jarvis.py` following the existing format.
+This project uses an Object-Oriented architecture with a **Command Dispatcher (Strategy Pattern)**. To add new custom commands to Jarvis:
+
+1. Create a new handler method inside the `JarvisAssistant` class in `jarvis.py`:
+   ```python
+   def cmd_my_custom_task(self, query: str) -> bool:
+       self.speak("Executing your custom task!")
+       # Add your logic here
+       return True # Return True to keep Jarvis running
+   ```
+
+2. Register the trigger word and the handler function inside `_register_default_commands()`:
+   ```python
+   self.register_command("my trigger word", self.cmd_my_custom_task)
+   ```
 
 ## Troubleshooting
 - **Microphone not picking up audio**: Ensure your default system microphone is correctly set. You might want to tweak the `r.energy_threshold` value in `takeCommand()` if there is too much background noise.
